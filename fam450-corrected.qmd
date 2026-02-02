@@ -1,0 +1,114 @@
+---
+title: "Improved Statistical Methods for Financial Audit Manual Section 450: A Corrected Approach to Internal Control Testing"
+author: "Wade K. Copeland"
+date: last-modified
+date-format: "MMMM DD, YYYY"
+output-file: index.html
+bibliography: references.bib
+format:
+    html: 
+        embed-resources: true
+        code-overflow: wrap
+        page-layout: full
+        code-fold: true
+        toc: false
+        toc-location: left
+        toc-depth: 4
+        toc-expand: 4
+        html-math-method: katex
+        code-tools:
+            source: true
+            toggle: true
+            caption: "Code Tools"
+number-sections: false
+appendix-style: plain
+engine: jupyter
+knitr:
+    opts_knit:
+        root.dir: "./"
+---
+
+## Introduction
+
+An internal control is defined as a process effected by an entity’s oversight body, management, and other personnel, designed to provide reasonable assurance that the objectives of an entity will be achieved [@greenbook_2025, p. 6].  The goal of an auditor is to obtain sufficient appropriate audit evidence about the operating effectiveness of relevant internal controls [@fam450_2025, sec. 450.01].
+
+## Methods of the Financial Audit Manual Section 450
+
+To determine the operating effectiveness of internal controls, auditors have relied on Figure 450.1 of the Financial Audit Manual Volume 1 [@fam450_2025, sec. 450.09].  This table provides the sample size and number of allowed deviations, before which an auditor can declare that the controls are effective.  Written in terms of statistical hypothesis testing, we have the following null and alternative hypotheses, respectively:
+
+* $H_0$: The internal controls are ineffective, e.g., the population deviation rate is greater than or equal to some _a priori_ specified tolerable rate.
+* $H_a$: The internal controls are effective, e.g., the population deviation rate is less than the tolerable rate.
+
+Figure 450.1 from the FAM 450 indicates that with a sample size of 45, if an auditor observes zero deviations, they can reject with 90% confidence the null hypothesis that the population deviation rate is greater than the tolerable rate of 5%, and declare the controls effective.  On the other hand, if an auditor observes even one deviation in the sample, they will _fail to reject the null hypothesis_ that the controls are ineffective. This wording is very important because failing to reject the null hypothesis is __not__ the same as being able to claim the controls are ineffective—_an auditor who observes even one deviation cannot declare that the controls are ineffective_.  This is analogous to how courts declare someone not guilty due to lack of evidence, rather than declaring them innocent.
+
+We can illustrate the inherent logical fallacy of declaring the controls ineffective using basic arithmetic.  In the example above, declaring the controls ineffective means that we believe the tolerable rate of deviation is greater than 5% if 1/45 or approximately 2.2% of the controls failed.  However, in order to say that the controls are ineffective at the 5% level we would need to observe at least more than that.  As shown in the next section, an auditor will need 5/45 or 11.1% of controls to fail in order to claim they are ineffective at this level.
+
+![](fam450-01.png){width=400, height=400}
+
+## Updated Statistical Methods for the Financial Audit Manual Section 450
+
+In practice, auditors are rarely interested in the above hypotheses and instead want to determine if there is enough evidence to conclude that the controls are ineffective.  This requires reversing the hypotheses and adjusting the sample size calculations accordingly:
+
+* $H_0$: The internal controls are effective, e.g., the population deviation rate is less than or equal to the tolerable rate.
+* $H_a$: The internal controls are ineffective, e.g., the population deviation rate is greater than the tolerable rate.
+
+```{r}
+#| label: fam450-corrected
+#| eval: true
+#| echo: true
+#| output: true
+#| warning: false
+#| message: false
+
+library("reticulate")
+library("kableExtra")
+
+fam450 <- import("fam450")
+df_py <- fam450$fam450gt()
+df_py <- df_py$reset_index()
+df_dict <- df_py$to_dict(orient = "list")
+df <- py_to_r(df_dict)
+
+trdTableRow <- function(ss) {
+    ind = which(df$`Sample Size` == ss)
+    return(c(df[[1]][ind], df[[2]][ind], df[[1]][ind], df[[3]][ind]))
+}
+
+tab = data.frame(rbind(trdTableRow(45), trdTableRow(78), trdTableRow(105), trdTableRow(132), trdTableRow(158)))
+
+colnames(tab) <- c("Sample size", "Acceptable Number of Deviations", "Sample Size", "Acceptable Number of Deviations")
+
+tab %>% 
+    kbl(escape = FALSE, caption = "The number of allowed deviations, after which an auditor has enough evidence to determine the internal controls are ineffective.") %>% 
+    add_header_above(c("Tolerable Rate of Deviation 5%" = 2, "Tolerable Rate of Deviation 10%" = 2)) %>%
+    add_header_above(c("90 Percent Confidence Level" = 4))
+```
+
+For the updated table, we use an exact test of binomial proportions to determine the number of allowed deviations before we can reject the null hypothesis that the true tolerable rate of deviation is less than or equal to the specified threshold [@rosner2016fundamentals, pp. 252-253; @copeland2026fam450].  The algorithm works as follows, given the hypothesized tolerable rate of deviation $p$, the sample size $n$, and the confidence level $c$:
+
+1.  Let $i$ be the number of observed deviations.
+2.  Under the null hypothesis that $\frac{i}{n} \le p$, we calculate the probability of observing $\frac{i}{n}$ or more extreme, also called the p-value.
+3.  If the calculated p-value is less than $1-c$, we reject the null hypothesis in favor of the alternative that $\frac{i}{n} > p$.
+4.  The number of allowed deviations is the value $i-1$ such that if we observe this number of deviations or fewer, we will always fail to reject the null hypothesis.
+
+These methods can be analogously applied to reproduce the original results in Figure 450.1, providing confirmation that the statistical methods used here are accurate. This validation is particularly important since the statistical methods underlying FAM 450 are not otherwise documented in the manual.  Furthermore, this means that I have proven that any claim based on Figure 450.1 in FAM 450 that an audit client's controls are ineffective, such as in @fam450_2025, sections 450.17 and 450.18, is wrong.
+
+## Session Information {#sec-sessioninfo}
+
+All of the files needed to reproduce these results can be downloaded from the Git repository <https://github.com/wkingc/fam450-corrected-py>.
+
+### Python
+
+```{python}
+import fam450
+import session_info
+session_info.show()
+```
+
+### R
+
+```{r session_info}
+sessionInfo()
+```
+
+# References
